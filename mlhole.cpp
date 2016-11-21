@@ -19,15 +19,10 @@
 #include "dart/gui/gui.hpp"
 #include "controller.hpp"
 
-const double default_height = 1.0; // m
-const double default_width = 0.2;  // m
-const double default_depth = 0.2;  // m
-
-const double default_torque = 5.0; // N-m
-const double default_force =  15.0; // N
-const int default_countdown = 20;  // Number of timesteps for applying force
-
+// The stepsize for changing position in x y z direction
 const double default_step = 0.001;
+
+// The step angle when changing rotation in Degrees
 const double default_angle = 1.0;
 
 using namespace dart::dynamics;
@@ -40,39 +35,20 @@ public:
   /// Constructor
   MyWindow(WorldPtr world,
            Controller* ctrl)
-    : mBallConstraint(nullptr),
-      mPositiveSign(true),
-      mBodyForce(false),
-      singlestep(false)
+    : singlestep(false)
   {
     setWorld(world);
 
-    // Find the Skeleton named "pendulum" within the World
+    // Find the Skeleton named "stick" within the World
     mStick = world->getSkeleton("stick");
-
-    // Make sure that the pendulum was found in the World
     assert(mStick != nullptr);
 
     mFloor = world->getSkeleton("floor");
-    mdata.resize(1000);
-    mForceCountDown.resize(mStick->getNumDofs(), 0);
 
+    // This is the controller which controls the stick
     mController = ctrl;
-
+    // Initial target position for the stick
     mTargetPosition << 30.0*M_PI/180.0, 0.0, 0.0, 0.2, 0.3, 0.2;
-
-    ArrowShape::Properties arrow_properties;
-    arrow_properties.mRadius = 0.05;
-    mArrow = std::shared_ptr<ArrowShape>(new ArrowShape(
-                                                        Eigen::Vector3d(-default_height, 0.0, default_height / 2.0),
-                                                        Eigen::Vector3d(-default_width / 2.0, 0.0, default_height / 2.0),
-                                                        arrow_properties, dart::Color::Orange(1.0)));
-  }
-
-  void applyForce(std::size_t index)
-  {
-    if(index < mForceCountDown.size())
-      mForceCountDown[index] = default_countdown;
   }
 
   void drawWorld() const {
@@ -85,35 +61,14 @@ public:
   void initLights() {
     static float ambient[]             = {0.0, 0.0, 0.0, 1.0};
     static float diffuse[]             = {1.0, 1.0, 1.0, 1.0};
-    static float front_mat_shininess[] = {60.0};
-    static float front_mat_specular[]  = {0.2, 0.2,  0.2,  1.0};
-    static float front_mat_diffuse[]   = {0.5, 0.28, 0.38, 1.0};
-    static float lmodel_ambient[]      = {0.2, 0.2,  0.2,  1.0};
-    static float lmodel_twoside[]      = {GL_FALSE};
 
     GLfloat position[] = {0.0, 1.0, 2.0, 0.0};
-    GLfloat position1[] = {-1.0, 0.0, 0.0, 0.0};
 
     glEnable(GL_LIGHT0);
     glLightfv(GL_LIGHT0, GL_AMBIENT,  ambient);
     glLightfv(GL_LIGHT0, GL_DIFFUSE,  diffuse);
     glLightfv(GL_LIGHT0, GL_POSITION, position);
 
-    /*
-    glLightModelfv(GL_LIGHT_MODEL_AMBIENT,  lmodel_ambient);
-    glLightModelfv(GL_LIGHT_MODEL_TWO_SIDE, lmodel_twoside);
-
-    glEnable(GL_LIGHT1);
-    glLightfv(GL_LIGHT1, GL_DIFFUSE, diffuse);
-    glLightfv(GL_LIGHT1, GL_POSITION, position1);
-    glEnable(GL_LIGHTING);
-    glEnable(GL_COLOR_MATERIAL);
-
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, front_mat_shininess);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR,  front_mat_specular);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,   front_mat_diffuse);
-    */
-    
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDisable(GL_CULL_FACE);
@@ -185,40 +140,6 @@ public:
   {
     switch(key)
       {
-      case '-':
-        mPositiveSign = !mPositiveSign;
-        break;
-      case '1':
-        applyForce(0);
-        break;
-      case '2':
-        applyForce(1);
-        break;
-      case '3':
-        applyForce(2);
-        break;
-      case '4':
-        applyForce(3);
-        break;
-      case '5':
-        applyForce(4);
-        break;
-      case '6':
-        applyForce(5);
-        break;
-      case '7':
-        applyForce(6);
-        break;
-      case '8':
-        applyForce(7);
-        break;
-      case '9':
-        applyForce(8);
-        break;
-      case '0':
-        applyForce(9);
-        break;
-
       case 'q':
         mTargetPosition(3) += default_step;
         break;
@@ -253,13 +174,6 @@ public:
         mController->update(mTargetPosition);
         mWorld->step();
         break;
-      case 'p':
-        plot(mdata);
-        break;
-      case 'l':
-        for(int i = 0; i<1000;i++)
-          mWorld->step();
-        break;
                 
       case 'v':
         mShow3D = !mShow3D;
@@ -279,68 +193,21 @@ public:
     
     mController->update(mTargetPosition);
 
-    if(!mBodyForce)
-      {
-        // Apply joint torques based on user input, and color the Joint shape red
-        for(std::size_t i = 0; i < mStick->getNumDofs(); ++i)
-          {
-            if(mForceCountDown[i] > 0)
-              {
-                DegreeOfFreedom* dof = mStick->getDof(i);
-                dof->setForce( mPositiveSign? default_torque : -default_torque );
-
-                //BodyNode* bn = dof->getChildBodyNode();
-                //auto visualShapeNodes = bn->getShapeNodesWith<VisualAspect>();
-                //visualShapeNodes[0]->getVisualAspect()->setColor(dart::Color::Red());
-
-                --mForceCountDown[i];
-              }
-          }
-      }
-    else
-      {
-        Eigen::Vector3d force = Eigen::Vector3d::Zero();
-        bool apply = false;
-        for(std::size_t i = 0; i < 3;i++)
-          {
-            if (mForceCountDown[i] > 0)
-              {
-                force[i] = mPositiveSign ? 10.0 : -10.0;
-                apply = true;
-                --mForceCountDown[i];
-              }
-          }
-        std::cout << "Force: " << force << std::endl;
-        if (apply)
-          mStick->getBodyNode("cylinder_link")->addExtForce(force);
-      
-      }
-
     // Show Forces
     {
       Eigen::VectorXd corforces = mStick->getConstraintForces();
-      Eigen::VectorXd gforces = mStick->getGravityForces();
-      //Eigen::VectorXd conforces = m->getConstraintForces();
       std::cout << "Constraint Forces: " << corforces << std::endl;
-      //std::cout << "Gravity Forces: " << gforces << std::endl;
-      //std::cout << "Constraint Forces: " << conforces << std::endl;
-
-      //BodyNode* bn = mFloor->getBodyNode("cylinder_link");
-      //Eigen::Vector6d bodyforce = bn->getBodyForce();
-      //std::cout << "Body Forces: " << bodyforce << std::endl;
-      //mdata(mdataidx++ % mdata.size()) = corforces(5);
-      
     }
 
     // Show Position in World Coordinates
     {
-      BodyNodePtr bn = mStick->getBodyNode("cylinder_link");
-      Eigen::Vector3d pos = bn->getWorldTransform().translation();
+      //BodyNodePtr bn = mStick->getBodyNode("cylinder_link");
+      //Eigen::Vector3d pos = bn->getWorldTransform().translation();
       //std::cout << "Pos: " << pos << std::endl;
-      Eigen::AngleAxisd aa(bn->getWorldTransform().linear());
+      //Eigen::AngleAxisd aa(bn->getWorldTransform().linear());
       //std::cout << "aa: " << aa << std::endl;
       //std::cout << "Angle: " << aa.angle() << "Axis : " << aa.axis() << std::endl;
-      dart::dynamics::Joint *j = mStick->getJoint("cylinder_joint");
+      //dart::dynamics::Joint *j = mStick->getJoint("cylinder_joint");
       //std::cout << "Pos: " << j->getPositions() << std::endl;
     }
 
@@ -350,36 +217,23 @@ public:
 
 protected:
 
-  /// An arrow shape that we will use to visualize applied forces
-  std::shared_ptr<ArrowShape> mArrow;
-
   /// The stick
   SkeletonPtr mStick;
 
+  // The ground floor with the hole
   SkeletonPtr mFloor;
 
+  // Target position of the stick
   Eigen::Vector6d mTargetPosition;
 
-  int mdataidx = 0;
-  Eigen::VectorXd mdata;
-
+  // If true, then single stepping is possible
   bool singlestep;
 
-  /// Pointer to the ball constraint that we will be turning on and off
-  dart::constraint::BallJointConstraintPtr mBallConstraint;
-
-  /// Number of iterations before clearing a force entry
-  std::vector<int> mForceCountDown;
-
-  /// Whether a force should be applied in the positive or negative direction
-  bool mPositiveSign;
-
-  /// True if 1-9 should be used to apply a body force. Otherwise, 1-9 will be
-  /// used to apply a joint torque.
-  bool mBodyForce;
-
+  // True: The default 3D Window visualization
+  // False: The 2D Projection
   bool mShow3D = false;
 
+  // The controller for the stick
   Controller* mController;
 };
 
@@ -408,15 +262,15 @@ SkeletonPtr createStick()
   bodyProp.mName = "cylinder_link";
   bodyProp.mInertia.setMass(1.0);
   // Do not consider friction - switch to frictionless mode
-  bodyProp.mFrictionCoeff = 1e-8;
+  bodyProp.mFrictionCoeff = 1e-12;
 
   FreeJoint::Properties jointProp;
   jointProp.mName = "cylinder_joint";
   
-  // Give the floor a body
   BodyNodePtr body =
     stick->createJointAndBodyNodePair<FreeJoint>(nullptr, jointProp, bodyProp).second;
 
+  // Switch off gravity for the stick
   body->setGravityMode(false);
 
   // Give the body a shape
@@ -428,13 +282,7 @@ SkeletonPtr createStick()
     = body->createShapeNodeWith<VisualAspect, CollisionAspect, DynamicsAspect>(cylinder);
   shapeNode->getVisualAspect()->setColor(dart::Color::Green());
 
-  // Put the body into position
-  /*
-  Eigen::Isometry3d tf(Eigen::Isometry3d::Identity());
-  tf.translation() = Eigen::Vector3d(0.2, 0.3, 0.0);
-  tf.rotate (Eigen::AngleAxisd(30.0*M_PI/180.0, Eigen::Vector3d::UnitX()));
-  body->getParentJoint()->setTransformFromParentBodyNode(tf);
-  */
+  // The initial position of the stick
   dart::dynamics::Joint *j = body->getParentJoint();
   j->setPosition(0,30.0*M_PI/180.0);
   j->setPosition(3,0.2);
@@ -465,21 +313,19 @@ int main(int argc, char* argv[])
 
   // Print instructions
   std::cout << "space bar: simulation on/off" << std::endl;
-  std::cout << "'p': replay simulation" << std::endl;
-  std::cout << "'1' -> '9': apply torque to a pendulum body" << std::endl;
-  std::cout << "'-': Change sign of applied joint torques" << std::endl;
-  std::cout << "'q': Increase joint rest positions" << std::endl;
-  std::cout << "'a': Decrease joint rest positions" << std::endl;
-  std::cout << "'w': Increase joint spring stiffness" << std::endl;
-  std::cout << "'s': Decrease joint spring stiffness" << std::endl;
-  std::cout << "'e': Increase joint damping" << std::endl;
-  std::cout << "'d': Decrease joint damping" << std::endl;
-  std::cout << "'r': add/remove constraint on the end of the chain" << std::endl;
-  std::cout << "'f': switch between applying joint torques and body forces" << std::endl;
+  std::cout << "'v': switch between 2D and 3D view" << std::endl;
+  std::cout << "'q': Increase target x position" << std::endl;
+  std::cout << "'a': Decrease target x position" << std::endl;
+  std::cout << "'w': Increase target y position" << std::endl;
+  std::cout << "'s': Decrease target y position" << std::endl;
+  std::cout << "'e': Increase target z position" << std::endl;
+  std::cout << "'d': Decrease target z position" << std::endl;
+  std::cout << "'r': Increase rotation around x axis" << std::endl;
+  std::cout << "'f': Decrease rotation around x axis" << std::endl;
 
   // Initialize glut, initialize the window, and begin the glut event loop
   glutInit(&argc, argv);
-  window.initWindow(640, 480, "Multi-Pendulum Tutorial");
+  window.initWindow(640, 480, "Machine Learning Hole");
   glutSetCursor(GLUT_CURSOR_CROSSHAIR);
   glutMainLoop();
 }
