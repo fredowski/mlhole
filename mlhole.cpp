@@ -20,10 +20,10 @@
 #include "controller.hpp"
 
 // The stepsize for changing position in x y z direction
-const double default_step = 0.001;
+const double default_step = 0.01;
 
 // The step angle when changing rotation in Degrees
-const double default_angle = 1.0;
+const double default_angle = 10.0;
 
 using namespace dart::dynamics;
 using namespace dart::simulation;
@@ -174,7 +174,6 @@ public:
         mController->update(mTargetPosition);
         mWorld->step();
         break;
-                
       case 'v':
         mShow3D = !mShow3D;
         break;
@@ -284,7 +283,7 @@ SkeletonPtr createStick()
 
   // The initial position of the stick
   dart::dynamics::Joint *j = body->getParentJoint();
-  j->setPosition(0,30.0*M_PI/180.0);
+  j->setPosition(0,0.0*M_PI/180.0);
   j->setPosition(3,0.2);
   j->setPosition(4,0.3);
   j->setPosition(5,0.2);
